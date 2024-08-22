@@ -10,7 +10,7 @@ namespace PubSub
     {
         private Subscriber subscriber;
 
-        [SerializeField] private string host = "192.168.1.54";
+        [SerializeField] private string host = "10.190.195.213";
         [SerializeField] private string port = "12345";
 
         public GameObject kinectCube;
