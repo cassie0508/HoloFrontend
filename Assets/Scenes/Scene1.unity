@@ -387,18 +387,16 @@ MonoBehaviour:
   m_GameObject: {fileID: 963194225}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8829b3448b1d9384782daddc2fade6fb, type: 3}
+  m_Script: {fileID: 11500000, guid: ffbcb65b82cb33e49894f910e127a040, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   UseOcclusionShader: 1
   PointCloudShader: {fileID: 4800000, guid: 14a2d379594f4b84e91b1d293f91bd8d, type: 3}
   OcclusionShader: {fileID: 4800000, guid: 8cfb4b3e2078a8e47902e620917cb02d, type: 3}
   MaxPointDistance: 0.02
-  EnableDuplication: 1
-  RegionOfInterest: {fileID: 258810883}
-  DuplicatedReality: {fileID: 891317617}
   EnableARBackground: 1
-  ARBackgroundMaterial: {fileID: 0}
+  ARBackgroundMaterial: {fileID: 2100000, guid: 48893fb64b8e75f4e9cf862f17c26ada,
+    type: 2}
   DepthImage: {fileID: 0}
   ColorImage: {fileID: 0}
   ColorInDepthImage: {fileID: 0}
@@ -408,8 +406,8 @@ MonoBehaviour:
   DepthHeight: 0
   IRWidth: 0
   IRHeight: 0
-  xylookup: {fileID: 0}
-  color2DepthCalibration:
+  XYLookup: {fileID: 0}
+  Color2DepthCalibration:
     e00: 0
     e01: 0
     e02: 0
@@ -428,8 +426,11 @@ MonoBehaviour:
     e33: 0
   PointcloudMat: {fileID: 0}
   OcclusionMat: {fileID: 0}
-  host: 10.32.211.162
+  host: 10.70.100.141
   port: 12345
+  EnableDuplication: 1
+  RegionOfInterest: {fileID: 258810883}
+  DuplicatedReality: {fileID: 891317617}
 --- !u!1001 &1254319906
 PrefabInstance:
   m_ObjectHideFlags: 0
