@@ -21,10 +21,7 @@ namespace PubSub
         [Tooltip("Only needs to be set when BlitToCamera is checked")]
         public Material ARBackgroundMaterial;
 
-        [Header("ReadOnly and exposed for Debugging")]
-        [SerializeField] private Texture2D DepthImage;
-        [SerializeField] private Texture2D ColorImage;
-        [SerializeField] private Texture2D ColorInDepthImage;
+        [Header("ReadOnly and exposed for Debugging: Initial Message")]
         [SerializeField] private int ColorWidth;
         [SerializeField] private int ColorHeight;
         [SerializeField] private int DepthWidth;
@@ -33,6 +30,11 @@ namespace PubSub
         [SerializeField] private int IRHeight;
         [SerializeField] private Texture2D XYLookup;
         [SerializeField] private Matrix4x4 Color2DepthCalibration;
+
+        [Header("ReadOnly and exposed for Debugging: Update for every Frame")]
+        [SerializeField] private Texture2D DepthImage;
+        [SerializeField] private Texture2D ColorImage;
+        [SerializeField] private Texture2D ColorInDepthImage;
         [SerializeField] private Material PointcloudMat;
         [SerializeField] private Material OcclusionMat;
 
@@ -104,8 +106,8 @@ namespace PubSub
 
                 Color2DepthCalibration = ByteArrayToMatrix4x4(calibrationData);
 
-                PointcloudMat = SetupPointcloudShader(PointCloudShader, ColorInDepthImage, ref DepthImage);
-                OcclusionMat = SetupPointcloudShader(OcclusionShader, ColorInDepthImage, ref DepthImage);
+                PointcloudMat = SetupPointcloudShader(PointCloudShader, ColorInDepthImage, DepthImage);
+                OcclusionMat = SetupPointcloudShader(OcclusionShader, ColorInDepthImage, DepthImage);
             });
         }
 
@@ -180,7 +182,7 @@ namespace PubSub
             return matrix;
         }
 
-        private Material SetupPointcloudShader(Shader shader, Texture2D ColorInDepth, ref Texture2D Depth)
+        private Material SetupPointcloudShader(Shader shader, Texture2D ColorInDepth, Texture2D Depth)
         {
             var PointCloudMat = new Material(shader);
 
