@@ -94,10 +94,10 @@ namespace PubSub
                 IRWidth = captureArray[4];
                 IRHeight = captureArray[5];
 
-                SetupTextures(ref ColorImage, ref DepthImage, ref ColorInDepthImage);   // TODO: ref or not?
+                SetupTextures(ref ColorImage, ref DepthImage, ref ColorInDepthImage);
 
                 // Setup point cloud shader
-                if(XYLookup == null)
+                if (XYLookup == null)
                 {
                     XYLookup = new Texture2D(DepthImage.width, DepthImage.height, TextureFormat.RGBAFloat, false);
                     XYLookup.LoadRawTextureData(xyLookupData);
@@ -113,7 +113,8 @@ namespace PubSub
 
         private void OnFrameReceived(byte[] data)
         {
-            UnityMainThreadDispatcher.Dispatcher.Enqueue(() => {
+            UnityMainThreadDispatcher.Dispatcher.Enqueue(() =>
+            {
                 // Parse frame data
                 int colorDataLength = BitConverter.ToInt32(data, 0);
                 int depthDataLength = BitConverter.ToInt32(data, sizeof(int));
@@ -133,9 +134,16 @@ namespace PubSub
                 DepthImage.Apply();
                 ColorInDepthImage.LoadRawTextureData(colorInDepthData);
                 ColorInDepthImage.Apply();
+            });
+        }
 
-                // Set point cloud shader
+        private void Update()
+        {
+            if (DepthImage != null && PointcloudMat != null)
+            {
                 int pixel_count = DepthImage.width * DepthImage.height;
+
+                // Set point cloud shader properties and render point cloud every frame
                 PointcloudMat.SetMatrix("_PointcloudOrigin", transform.localToWorldMatrix);
                 PointcloudMat.SetFloat("_MaxPointDistance", MaxPointDistance);
 
@@ -155,7 +163,7 @@ namespace PubSub
                 }
 
                 Graphics.DrawProcedural(PointcloudMat, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Points, pixel_count);
-            });
+            }
         }
 
         private void SetupTextures(ref Texture2D Color, ref Texture2D Depth, ref Texture2D ColorInDepth)
@@ -204,7 +212,6 @@ namespace PubSub
 
         private void OnRenderImage(RenderTexture source, RenderTexture destination)
         {
-
             if (EnableARBackground && ARBackgroundMaterial)
             {
                 Graphics.Blit(ColorImage, destination, new Vector2(1, -1), Vector2.zero);
