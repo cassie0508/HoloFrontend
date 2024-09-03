@@ -39,6 +39,7 @@
             half4x4 _ROI_Inversed;
             half4x4 _Dupl_Inversed;
             half4x4 _Roi2Dupl;
+            half4x4 _KinectToHololens;  // To transfer from Kinect to Hololens view
 
             SamplerState sampler_ColorTex
             {
@@ -159,16 +160,17 @@
                     {
                         o.IsDuplicate = 1;
                     
-                        float4 vertexPos0 = mul(_Roi2Dupl, pos0);
+                        // Apply _KinectToHololens instead of _Roi2Dupl
+                        float4 vertexPos0 = mul(_KinectToHololens, pos0);
                         float4 vertexMVP0 = mul(UNITY_MATRIX_VP, vertexPos0);
 
-                        float4 vertexPos1 = mul(_Roi2Dupl, pos1);
+                        float4 vertexPos1 = mul(_KinectToHololens, pos1);
                         float4 vertexMVP1 = mul(UNITY_MATRIX_VP, vertexPos1);
 
-                        float4 vertexPos2 = mul(_Roi2Dupl, pos2);
+                        float4 vertexPos2 = mul(_KinectToHololens, pos2);
                         float4 vertexMVP2 = mul(UNITY_MATRIX_VP, vertexPos2);
 
-                        float4 vertexPos3 = mul(_Roi2Dupl, pos3);
+                        float4 vertexPos3 = mul(_KinectToHololens, pos3);
                         float4 vertexMVP3 = mul(UNITY_MATRIX_VP, vertexPos3);
 
                         o.posWorld = vertexPos0;
