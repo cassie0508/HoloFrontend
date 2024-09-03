@@ -8,14 +8,32 @@ public class KinectController_WithDuplicatedReality : KinectSubscriberCopy
     public bool EnableDuplication = true;
     public Transform RegionOfInterest;
     public Transform DuplicatedReality;
+    public Transform HololensCamera; // User view
 
     public override void OnSetPointcloudProperties(Material pointcloudMat)
     {
         if(EnableDuplication) pointcloudMat.EnableKeyword("_DUPLICATE_ON");
         else pointcloudMat.DisableKeyword("_DUPLICATE_ON");
 
-        pointcloudMat.SetMatrix("_Roi2Dupl", DuplicatedReality.localToWorldMatrix * RegionOfInterest.worldToLocalMatrix);
+        // Kinect/RegionOfInterest to DuplicatedReality
+        Matrix4x4 roiToDupl = DuplicatedReality.localToWorldMatrix * RegionOfInterest.worldToLocalMatrix;
+
+        // Kinect/RegionOfInterest to Hololens
+        Matrix4x4 hololensWorld = HololensCamera.localToWorldMatrix;
+        Matrix4x4 kinectToHololens = hololensWorld.inverse * roiToDupl;
+
+        pointcloudMat.SetMatrix("_KinectToHololens", kinectToHololens);
+        pointcloudMat.SetMatrix("_Roi2Dupl", roiToDupl);
         pointcloudMat.SetMatrix("_ROI_Inversed", RegionOfInterest.worldToLocalMatrix);
         pointcloudMat.SetMatrix("_Dupl_Inversed", DuplicatedReality.worldToLocalMatrix);
+    }
+
+    protected override void Update()
+    {
+        if (Camera.main != null)
+        {
+            HololensCamera = Camera.main.transform;
+        }
+        base.Update();
     }
 }

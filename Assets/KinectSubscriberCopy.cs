@@ -137,7 +137,7 @@ namespace PubSub
             });
         }
 
-        private void Update()
+        protected virtual void Update()
         {
             if (DepthImage != null && PointcloudMat != null)
             {
