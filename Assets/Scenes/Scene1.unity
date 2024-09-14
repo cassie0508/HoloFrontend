@@ -397,9 +397,6 @@ MonoBehaviour:
   EnableARBackground: 1
   ARBackgroundMaterial: {fileID: 2100000, guid: 48893fb64b8e75f4e9cf862f17c26ada,
     type: 2}
-  DepthImage: {fileID: 0}
-  ColorImage: {fileID: 0}
-  ColorInDepthImage: {fileID: 0}
   ColorWidth: 0
   ColorHeight: 0
   DepthWidth: 0
@@ -424,6 +421,9 @@ MonoBehaviour:
     e31: 0
     e32: 0
     e33: 0
+  DepthImage: {fileID: 0}
+  ColorImage: {fileID: 0}
+  ColorInDepthImage: {fileID: 0}
   PointcloudMat: {fileID: 0}
   OcclusionMat: {fileID: 0}
   host: 10.70.100.141
@@ -431,6 +431,7 @@ MonoBehaviour:
   EnableDuplication: 1
   RegionOfInterest: {fileID: 258810883}
   DuplicatedReality: {fileID: 891317617}
+  HololensCamera: {fileID: 0}
 --- !u!1001 &1254319906
 PrefabInstance:
   m_ObjectHideFlags: 0
