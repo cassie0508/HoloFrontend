@@ -1,7 +1,7 @@
 using PubSub;
 using UnityEngine;
 
-public class KinectController_WithDuplicatedReality : KinectSubscriberCopy
+public class KinectController_WithDuplicatedReality : KinectSubscriber
 {
 
     [Header("Duplicated Reality")]
