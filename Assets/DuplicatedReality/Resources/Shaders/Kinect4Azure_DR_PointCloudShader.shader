@@ -103,8 +103,8 @@
                 float4 xy2 = _XYLookup.Load(texel2) * 2 - 1;
                 float4 xy3 = _XYLookup.Load(texel3) * 2 - 1;
 
-                float4x4 OxC = mul(_PointcloudOrigin, _Col2DepCalibration);
-
+                float4x4 OxC = mul(_PointcloudOrigin, _Col2DepCalibration); // TODO: transfer to hololens
+                
                 float4 pos0 = mul(OxC, float4(float3(xy0.x, -xy0.y , 1) * depth0 * 0.001f, 1.0f));
                 float4 pos1 = mul(OxC, float4(float3(xy1.x, -xy1.y , 1) * depth1 * 0.001f, 1.0f));
                 float4 pos2 = mul(OxC, float4(float3(xy2.x, -xy2.y , 1) * depth2 * 0.001f, 1.0f));

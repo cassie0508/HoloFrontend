@@ -33,7 +33,7 @@ namespace PubSub
 
         [Header("ReadOnly and exposed for Debugging: Update for every Frame")]
         [SerializeField] private Texture2D DepthImage;
-        [SerializeField] private Texture2D ColorImage;
+        //[SerializeField] private Texture2D ColorImage;
         [SerializeField] private Texture2D ColorInDepthImage;
         [SerializeField] private Material PointcloudMat;
         [SerializeField] private Material OcclusionMat;
@@ -94,7 +94,7 @@ namespace PubSub
                 IRWidth = captureArray[4];
                 IRHeight = captureArray[5];
 
-                SetupTextures(ref ColorImage, ref DepthImage, ref ColorInDepthImage);
+                SetupTextures(ref DepthImage, ref ColorInDepthImage);
 
                 // Setup point cloud shader
                 if (XYLookup == null)
@@ -116,20 +116,20 @@ namespace PubSub
             UnityMainThreadDispatcher.Dispatcher.Enqueue(() =>
             {
                 // Parse frame data
-                int colorDataLength = BitConverter.ToInt32(data, 0);
+                //int colorDataLength = BitConverter.ToInt32(data, 0);
                 int depthDataLength = BitConverter.ToInt32(data, sizeof(int));
                 int colorInDepthDataLength = BitConverter.ToInt32(data, sizeof(int) * 2);
 
-                byte[] colorData = new byte[colorDataLength];
-                Buffer.BlockCopy(data, sizeof(int) * 3, colorData, 0, colorDataLength);
+                //byte[] colorData = new byte[colorDataLength];
+                //Buffer.BlockCopy(data, sizeof(int) * 3, colorData, 0, colorDataLength);
                 byte[] depthData = new byte[depthDataLength];
-                Buffer.BlockCopy(data, sizeof(int) * 3 + colorDataLength, depthData, 0, depthDataLength);
+                Buffer.BlockCopy(data, sizeof(int) * 3 + 0, depthData, 0, depthDataLength);
                 byte[] colorInDepthData = new byte[colorInDepthDataLength];
-                Buffer.BlockCopy(data, sizeof(int) * 3 + colorDataLength + depthDataLength, colorInDepthData, 0, colorInDepthDataLength);
+                Buffer.BlockCopy(data, sizeof(int) * 3 + 0 + depthDataLength, colorInDepthData, 0, colorInDepthDataLength);
 
                 // Apply data to textures
-                ColorImage.LoadRawTextureData(colorData);
-                ColorImage.Apply();
+                //ColorImage.LoadRawTextureData(colorData);
+                //ColorImage.Apply();
                 DepthImage.LoadRawTextureData(depthData);
                 DepthImage.Apply();
                 ColorInDepthImage.LoadRawTextureData(colorInDepthData);
@@ -166,10 +166,10 @@ namespace PubSub
             }
         }
 
-        private void SetupTextures(ref Texture2D Color, ref Texture2D Depth, ref Texture2D ColorInDepth)
+        private void SetupTextures(ref Texture2D Depth, ref Texture2D ColorInDepth)
         {
-            if (Color == null)
-                Color = new Texture2D(ColorWidth, ColorHeight, TextureFormat.BGRA32, false);
+            //if (Color == null)
+            //    Color = new Texture2D(ColorWidth, ColorHeight, TextureFormat.BGRA32, false);
             if (Depth == null)
                 Depth = new Texture2D(DepthWidth, DepthHeight, TextureFormat.R16, false);
             if (ColorInDepth == null)
@@ -210,16 +210,16 @@ namespace PubSub
             return PointCloudMat;
         }
 
-        private void OnRenderImage(RenderTexture source, RenderTexture destination)
-        {
-            if (EnableARBackground && ARBackgroundMaterial)
-            {
-                Graphics.Blit(ColorImage, destination, new Vector2(1, -1), Vector2.zero);
-                Graphics.Blit(source, destination, ARBackgroundMaterial);
-            }
-            else
-                Graphics.Blit(source, destination);
-        }
+        //private void OnRenderImage(RenderTexture source, RenderTexture destination)
+        //{
+        //    if (EnableARBackground && ARBackgroundMaterial)
+        //    {
+        //        Graphics.Blit(ColorImage, destination, new Vector2(1, -1), Vector2.zero);
+        //        Graphics.Blit(source, destination, ARBackgroundMaterial);
+        //    }
+        //    else
+        //        Graphics.Blit(source, destination);
+        //}
 
         private void OnDestroy()
         {
