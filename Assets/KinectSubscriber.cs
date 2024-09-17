@@ -4,11 +4,14 @@ using System.Net.Sockets;
 using System.Net;
 using UnityEngine;
 using UnityMainThreadDispatcher;
+using UnityEngine.UI;
 
 namespace PubSub
 {
     public class KinectSubscriber : MonoBehaviour
     {
+        public RawImage ConnectionIndicator;
+
         [Header("Pointcloud Configs")]
         public bool UseOcclusionShader = true;
         public Shader PointCloudShader;
@@ -52,7 +55,7 @@ namespace PubSub
             subscriber = new Subscriber(host, port);
             subscriber.AddTopicCallback("Camera", data => OnCameraReceived(data));
             subscriber.AddTopicCallback("Frame", data => OnFrameReceived(data));
-            Debug.Log("Subscriber setup complete.");
+            Debug.Log("Subscriber setup complete with " + host + " " + port);
         }
 
         public string GetLocalIPAddress()
@@ -70,8 +73,14 @@ namespace PubSub
 
         private void OnCameraReceived(byte[] data)
         {
+            Debug.Log("OnCameraReceived");
+
             UnityMainThreadDispatcher.Dispatcher.Enqueue(() =>
             {
+                Debug.Log("In OnCameraReceived, main thread");
+                if (ConnectionIndicator)
+                    ConnectionIndicator.color = Color.green;
+
                 // Parse camera data
                 int xyLookupDataLength = BitConverter.ToInt32(data, 0);
                 int calibrationDataLength = BitConverter.ToInt32(data, sizeof(int) * 1);
@@ -108,13 +117,16 @@ namespace PubSub
 
                 PointcloudMat = SetupPointcloudShader(PointCloudShader, ColorInDepthImage, DepthImage);
                 OcclusionMat = SetupPointcloudShader(OcclusionShader, ColorInDepthImage, DepthImage);
+                OcclusionMat.renderQueue = 3000;
             });
         }
 
         private void OnFrameReceived(byte[] data)
         {
+            Debug.Log("OnFrameReceived");
             UnityMainThreadDispatcher.Dispatcher.Enqueue(() =>
             {
+                Debug.Log("OnFrameReceived, main thread");
                 // Parse frame data
                 //int colorDataLength = BitConverter.ToInt32(data, 0);
                 int depthDataLength = BitConverter.ToInt32(data, sizeof(int));
