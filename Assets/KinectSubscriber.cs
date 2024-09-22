@@ -50,102 +50,112 @@ namespace PubSub
 
         void Start()
         {
-            Debug.Log("Starting subscriber...");
-            host = GetLocalIPAddress();
-            subscriber = new Subscriber(host, port);
-            subscriber.AddTopicCallback("Camera", data => OnCameraReceived(data));
-            subscriber.AddTopicCallback("Frame", data => OnFrameReceived(data));
-            Debug.Log("Subscriber setup complete with " + host + " " + port);
-        }
-
-        public string GetLocalIPAddress()
-        {
-            var host = Dns.GetHostEntry(Dns.GetHostName());
-            foreach (var ip in host.AddressList)
+            try
             {
-                if (ip.AddressFamily == AddressFamily.InterNetwork)
-                {
-                    return ip.ToString();
-                }
+                subscriber = new Subscriber(host, port);
+
+                subscriber.AddTopicCallback("Camera", data => OnCameraReceived(data));
+                subscriber.AddTopicCallback("xyLookupData", data => OnLookupsReceived(data));
+                subscriber.AddTopicCallback("Frame", data => OnFrameReceived(data));
+                Debug.Log("Subscriber setup complete with host: " + host + " and port: " + port);
             }
-            throw new Exception("No network adapters with an IPv4 address in the system!");
+            catch (Exception e)
+            {
+                Debug.LogError("Failed to start subscriber: " + e.Message);
+            }
         }
 
         private void OnCameraReceived(byte[] data)
         {
-            Debug.Log("OnCameraReceived");
+            Debug.Log("On Camera Received: Data length : " + data.Length);
 
             UnityMainThreadDispatcher.Dispatcher.Enqueue(() =>
             {
-                Debug.Log("In OnCameraReceived, main thread");
                 if (ConnectionIndicator)
                     ConnectionIndicator.color = Color.green;
 
-                // Parse camera data
-                int xyLookupDataLength = BitConverter.ToInt32(data, 0);
-                int calibrationDataLength = BitConverter.ToInt32(data, sizeof(int) * 1);
-                int cameraSizeDataLength = BitConverter.ToInt32(data, sizeof(int) * 2);
+                try
+                {
+                    // Parse camera data
+                    int calibrationDataLength = BitConverter.ToInt32(data, 0);
+                    int cameraSizeDataLength = BitConverter.ToInt32(data, sizeof(int) * 1);
 
-                byte[] xyLookupData = new byte[xyLookupDataLength];
-                Buffer.BlockCopy(data, sizeof(int) * 3, xyLookupData, 0, xyLookupDataLength);
-                byte[] calibrationData = new byte[calibrationDataLength];
-                Buffer.BlockCopy(data, sizeof(int) * 3 + xyLookupDataLength, calibrationData, 0, calibrationDataLength);
-                byte[] cameraSizeData = new byte[cameraSizeDataLength];
-                Buffer.BlockCopy(data, sizeof(int) * 3 + xyLookupDataLength + calibrationDataLength, cameraSizeData, 0, cameraSizeDataLength);
+                    byte[] calibrationData = new byte[calibrationDataLength];
+                    Buffer.BlockCopy(data, sizeof(int) * 2, calibrationData, 0, calibrationDataLength);
+                    byte[] cameraSizeData = new byte[cameraSizeDataLength];
+                    Buffer.BlockCopy(data, sizeof(int) * 2 + calibrationDataLength, cameraSizeData, 0, cameraSizeDataLength);
 
-                // Setup texture
-                int[] captureArray = new int[6];
-                Buffer.BlockCopy(cameraSizeData, 0, captureArray, 0, cameraSizeData.Length);
-                ColorWidth = captureArray[0];
-                ColorHeight = captureArray[1];
-                DepthWidth = captureArray[2];
-                DepthHeight = captureArray[3];
-                IRWidth = captureArray[4];
-                IRHeight = captureArray[5];
+                    // Setup texture
+                    int[] captureArray = new int[6];
+                    Buffer.BlockCopy(cameraSizeData, 0, captureArray, 0, cameraSizeData.Length);
+                    ColorWidth = captureArray[0];
+                    ColorHeight = captureArray[1];
+                    DepthWidth = captureArray[2];
+                    DepthHeight = captureArray[3];
+                    IRWidth = captureArray[4];
+                    IRHeight = captureArray[5];
 
-                SetupTextures(ref DepthImage, ref ColorInDepthImage);
+                    SetupTextures(ref DepthImage, ref ColorInDepthImage);
 
-                // Setup point cloud shader
+                    Color2DepthCalibration = ByteArrayToMatrix4x4(calibrationData);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError("Error in OnCameraReceived: " + e.Message);
+                }
+            });
+        }
+
+        private void OnLookupsReceived(byte[] data)
+        {
+            Debug.Log("OnLookupsReceived: Data length : " + data.Length);
+            UnityMainThreadDispatcher.Dispatcher.Enqueue(() =>
+            {
                 if (XYLookup == null)
                 {
                     XYLookup = new Texture2D(DepthImage.width, DepthImage.height, TextureFormat.RGBAFloat, false);
-                    XYLookup.LoadRawTextureData(xyLookupData);
+                    XYLookup.LoadRawTextureData(data);
                     XYLookup.Apply();
                 }
 
-                Color2DepthCalibration = ByteArrayToMatrix4x4(calibrationData);
-
                 PointcloudMat = SetupPointcloudShader(PointCloudShader, ColorInDepthImage, DepthImage);
                 OcclusionMat = SetupPointcloudShader(OcclusionShader, ColorInDepthImage, DepthImage);
-                OcclusionMat.renderQueue = 3000;
+                OcclusionMat.renderQueue = 3000;    // Set renderQueue to avoid rendering artifact
             });
         }
 
         private void OnFrameReceived(byte[] data)
         {
-            Debug.Log("OnFrameReceived");
+            Debug.Log("On Frame Received: Data length : " + data.Length);
+
             UnityMainThreadDispatcher.Dispatcher.Enqueue(() =>
             {
-                Debug.Log("OnFrameReceived, main thread");
-                // Parse frame data
-                //int colorDataLength = BitConverter.ToInt32(data, 0);
-                int depthDataLength = BitConverter.ToInt32(data, sizeof(int));
-                int colorInDepthDataLength = BitConverter.ToInt32(data, sizeof(int) * 2);
+                try
+                {
+                    // Parse frame data
+                    //int colorDataLength = BitConverter.ToInt32(data, 0);
+                    int depthDataLength = BitConverter.ToInt32(data, sizeof(int));
+                    int colorInDepthDataLength = BitConverter.ToInt32(data, sizeof(int) * 2);
 
-                //byte[] colorData = new byte[colorDataLength];
-                //Buffer.BlockCopy(data, sizeof(int) * 3, colorData, 0, colorDataLength);
-                byte[] depthData = new byte[depthDataLength];
-                Buffer.BlockCopy(data, sizeof(int) * 3 + 0, depthData, 0, depthDataLength);
-                byte[] colorInDepthData = new byte[colorInDepthDataLength];
-                Buffer.BlockCopy(data, sizeof(int) * 3 + 0 + depthDataLength, colorInDepthData, 0, colorInDepthDataLength);
+                    //byte[] colorData = new byte[colorDataLength];
+                    //Buffer.BlockCopy(data, sizeof(int) * 3, colorData, 0, colorDataLength);
+                    byte[] depthData = new byte[depthDataLength];
+                    Buffer.BlockCopy(data, sizeof(int) * 3 + 0, depthData, 0, depthDataLength);
+                    byte[] colorInDepthData = new byte[colorInDepthDataLength];
+                    Buffer.BlockCopy(data, sizeof(int) * 3 + 0 + depthDataLength, colorInDepthData, 0, colorInDepthDataLength);
 
-                // Apply data to textures
-                //ColorImage.LoadRawTextureData(colorData);
-                //ColorImage.Apply();
-                DepthImage.LoadRawTextureData(depthData);
-                DepthImage.Apply();
-                ColorInDepthImage.LoadRawTextureData(colorInDepthData);
-                ColorInDepthImage.Apply();
+                    // Apply data to textures
+                    //ColorImage.LoadRawTextureData(colorData);
+                    //ColorImage.Apply();
+                    DepthImage.LoadRawTextureData(depthData);
+                    DepthImage.Apply();
+                    ColorInDepthImage.LoadRawTextureData(colorInDepthData);
+                    ColorInDepthImage.Apply();
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError("Error in OnFrameReceived: " + e.Message);
+                }
             });
         }
 
@@ -155,31 +165,40 @@ namespace PubSub
             {
                 int pixel_count = DepthImage.width * DepthImage.height;
 
-                // Set point cloud shader properties and render point cloud every frame
-                PointcloudMat.SetMatrix("_PointcloudOrigin", transform.localToWorldMatrix);
-                PointcloudMat.SetFloat("_MaxPointDistance", MaxPointDistance);
-
-                OnSetPointcloudProperties(PointcloudMat);
-
-                if (!UseOcclusionShader)
+                try
                 {
-                    PointcloudMat.EnableKeyword("_ORIGINALPC_ON");
+                    // Set point cloud shader properties and render point cloud every frame
+                    PointcloudMat.SetMatrix("_PointcloudOrigin", transform.localToWorldMatrix);
+                    PointcloudMat.SetFloat("_MaxPointDistance", MaxPointDistance);
+
+                    OnSetPointcloudProperties(PointcloudMat);
+
+                    if (!UseOcclusionShader)
+                    {
+                        PointcloudMat.EnableKeyword("_ORIGINALPC_ON");
+                    }
+                    else
+                    {
+                        PointcloudMat.DisableKeyword("_ORIGINALPC_ON");
+
+                        OcclusionMat.SetMatrix("_PointcloudOrigin", transform.localToWorldMatrix);
+                        OcclusionMat.SetFloat("_MaxPointDistance", MaxPointDistance);
+                        Graphics.DrawProcedural(OcclusionMat, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Points, pixel_count);
+                    }
+
+                    Graphics.DrawProcedural(PointcloudMat, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Points, pixel_count);
                 }
-                else
+                catch (Exception e)
                 {
-                    PointcloudMat.DisableKeyword("_ORIGINALPC_ON");
-
-                    OcclusionMat.SetMatrix("_PointcloudOrigin", transform.localToWorldMatrix);
-                    OcclusionMat.SetFloat("_MaxPointDistance", MaxPointDistance);
-                    Graphics.DrawProcedural(OcclusionMat, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Points, pixel_count);
+                    Debug.LogError("Error in point cloud rendering: " + e.Message);
                 }
-
-                Graphics.DrawProcedural(PointcloudMat, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Points, pixel_count);
             }
         }
 
         private void SetupTextures(ref Texture2D Depth, ref Texture2D ColorInDepth)
         {
+            Debug.Log("Setting up textures: DepthWidth=" + DepthWidth + " DepthHeight=" + DepthHeight);
+
             //if (Color == null)
             //    Color = new Texture2D(ColorWidth, ColorHeight, TextureFormat.BGRA32, false);
             if (Depth == null)
@@ -236,7 +255,11 @@ namespace PubSub
         private void OnDestroy()
         {
             Debug.Log("Destroying subscriber...");
-            subscriber.Dispose();
+            if (subscriber != null)
+            {
+                subscriber.Dispose();
+                subscriber = null;
+            }
         }
     }
 }

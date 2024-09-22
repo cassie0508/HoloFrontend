@@ -597,8 +597,8 @@ MonoBehaviour:
   ColorInDepthImage: {fileID: 0}
   PointcloudMat: {fileID: 0}
   OcclusionMat: {fileID: 0}
-  host: 
-  port: 12345
+  host: 192.168.0.55
+  port: 55555
   EnableDuplication: 1
   RegionOfInterest: {fileID: 258810883}
   DuplicatedReality: {fileID: 891317617}
