@@ -34,10 +34,6 @@ namespace PubSub
         [SerializeField] private Texture2D XYLookup;
         [SerializeField] private Matrix4x4 Color2DepthCalibration;
 
-        private byte[] xyLookupDataPart1;
-        private byte[] xyLookupDataPart2;
-        private byte[] xyLookupDataPart3;
-
         [Header("ReadOnly and exposed for Debugging: Update for every Frame")]
         [SerializeField] private Texture2D DepthImage;
         [SerializeField] private Texture2D ColorInDepthImage;
@@ -58,9 +54,7 @@ namespace PubSub
                 subscriber = new Subscriber(host, port);
 
                 subscriber.AddTopicCallback("Camera", data => OnCameraReceived(data));
-                subscriber.AddTopicCallback("Lookup1", data => OnLookupsReceived(data, 1));
-                subscriber.AddTopicCallback("Lookup2", data => OnLookupsReceived(data, 2));
-                subscriber.AddTopicCallback("Lookup3", data => OnLookupsReceived(data, 3));
+                subscriber.AddTopicCallback("Lookup", data => OnLookupsReceived(data));
                 subscriber.AddTopicCallback("Frame", data => OnFrameReceived(data));
                 Debug.Log("Subscriber setup complete with host: " + host + " and port: " + port);
             }
@@ -111,36 +105,23 @@ namespace PubSub
             });
         }
 
-        private void OnLookupsReceived(byte[] data, int part)
+        private void OnLookupsReceived(byte[] data)
         {
-            Debug.Log("On Lookup Received part: " + part + " with length " + data.Length);
+            Debug.Log("On Lookup Received with length " + data.Length);
 
             UnityMainThreadDispatcher.Dispatcher.Enqueue(() =>
             {
-                if (part == 1) xyLookupDataPart1 = data;
-                if (part == 2) xyLookupDataPart2 = data;
-                if (part == 3)
+                if (XYLookup == null)
                 {
-                    xyLookupDataPart3 = data;
+                    XYLookup = new Texture2D(DepthImage.width, DepthImage.height, TextureFormat.RGBAFloat, false);
+                    XYLookup.LoadRawTextureData(data);
+                    XYLookup.Apply();
 
-                    byte[] xyLookupData = new byte[xyLookupDataPart1.Length + xyLookupDataPart2.Length + xyLookupDataPart3.Length];
-                    System.Buffer.BlockCopy(xyLookupDataPart1, 0, xyLookupData, 0, xyLookupDataPart1.Length);
-                    System.Buffer.BlockCopy(xyLookupDataPart2, 0, xyLookupData, xyLookupDataPart1.Length, xyLookupDataPart2.Length);
-                    System.Buffer.BlockCopy(xyLookupDataPart3, 0, xyLookupData, xyLookupDataPart1.Length + xyLookupDataPart2.Length, xyLookupDataPart3.Length);
-
-                    if (XYLookup == null)
-                    {
-                        XYLookup = new Texture2D(DepthImage.width, DepthImage.height, TextureFormat.RGBAFloat, false);
-                        XYLookup.LoadRawTextureData(xyLookupData);
-                        XYLookup.Apply();
-
-                        Debug.Log("XYLookup data length " + xyLookupData.Length);
-
-                        PointcloudMat = SetupPointcloudShader(PointCloudShader, ColorInDepthImage, DepthImage);
-                        OcclusionMat = SetupPointcloudShader(OcclusionShader, ColorInDepthImage, DepthImage);
-                        OcclusionMat.renderQueue = 3000;    // Set renderQueue to avoid rendering artifact
-                    }
+                    PointcloudMat = SetupPointcloudShader(PointCloudShader, ColorInDepthImage, DepthImage);
+                    OcclusionMat = SetupPointcloudShader(OcclusionShader, ColorInDepthImage, DepthImage);
+                    OcclusionMat.renderQueue = 3000;    // Set renderQueue to avoid rendering artifact
                 }
+
             });
         }
 
