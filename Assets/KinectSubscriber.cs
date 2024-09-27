@@ -153,21 +153,16 @@ namespace PubSub
             {
                 try
                 {
-                    // Parse frame data
-                    //int colorDataLength = BitConverter.ToInt32(data, 0);
-                    int depthDataLength = BitConverter.ToInt32(data, sizeof(int));
-                    int colorInDepthDataLength = BitConverter.ToInt32(data, sizeof(int) * 2);
+                    // Extract the lengths of the depth and colorInDepth data
+                    int depthDataLength = BitConverter.ToInt32(data, 0);
+                    int colorInDepthDataLength = BitConverter.ToInt32(data, sizeof(int));
 
-                    //byte[] colorData = new byte[colorDataLength];
-                    //Buffer.BlockCopy(data, sizeof(int) * 3, colorData, 0, colorDataLength);
                     byte[] depthData = new byte[depthDataLength];
-                    Buffer.BlockCopy(data, sizeof(int) * 3 + 0, depthData, 0, depthDataLength);
-                    byte[] colorInDepthData = new byte[colorInDepthDataLength];
-                    Buffer.BlockCopy(data, sizeof(int) * 3 + 0 + depthDataLength, colorInDepthData, 0, colorInDepthDataLength);
+                    Buffer.BlockCopy(data, sizeof(int) * 2, depthData, 0, depthDataLength);
 
-                    // Apply data to textures
-                    //ColorImage.LoadRawTextureData(colorData);
-                    //ColorImage.Apply();
+                    byte[] colorInDepthData = new byte[colorInDepthDataLength];
+                    Buffer.BlockCopy(data, sizeof(int) * 2 + depthDataLength, colorInDepthData, 0, colorInDepthDataLength);
+
                     DepthImage.LoadRawTextureData(depthData);
                     DepthImage.Apply();
                     ColorInDepthImage.LoadRawTextureData(colorInDepthData);
@@ -223,7 +218,7 @@ namespace PubSub
             //if (Color == null)
             //    Color = new Texture2D(ColorWidth, ColorHeight, TextureFormat.BGRA32, false);
             if (Depth == null)
-                Depth = new Texture2D(DepthWidth, DepthHeight, TextureFormat.R16, false);
+                Depth = new Texture2D(DepthWidth, DepthHeight, TextureFormat.R8, false);
             if (ColorInDepth == null)
                 ColorInDepth = new Texture2D(IRWidth, IRHeight, TextureFormat.BGRA32, false);
         }
