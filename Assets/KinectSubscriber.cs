@@ -164,7 +164,7 @@ namespace PubSub
                     // Apply data to textures
                     DepthImage.LoadRawTextureData(depthData);
                     DepthImage.Apply();
-                    ColorInDepthImage.LoadRawTextureData(colorInDepthData);
+                    ColorInDepthImage.LoadImage(colorInDepthData);
                     ColorInDepthImage.Apply();
                 }
                 catch (Exception e)
