@@ -40,7 +40,6 @@ namespace PubSub
 
         [Header("ReadOnly and exposed for Debugging: Update for every Frame")]
         [SerializeField] private Texture2D DepthImage;
-        //[SerializeField] private Texture2D ColorImage;
         [SerializeField] private Texture2D ColorInDepthImage;
         [SerializeField] private Material PointcloudMat;
         [SerializeField] private Material OcclusionMat;
@@ -48,7 +47,7 @@ namespace PubSub
         private Subscriber subscriber;
 
         [SerializeField] private string host;
-        [SerializeField] private string port = "12345";
+        [SerializeField] private string port = "55555";
 
         public virtual void OnSetPointcloudProperties(Material pointcloudMat) { }
 
@@ -153,19 +152,20 @@ namespace PubSub
             {
                 try
                 {
-                    // Extract the lengths of the depth and colorInDepth data
+                    // Parse frame data
                     int depthDataLength = BitConverter.ToInt32(data, 0);
                     int colorInDepthDataLength = BitConverter.ToInt32(data, sizeof(int));
+                    Debug.Log("depthData length: " + depthDataLength + "   colorInDepthData length: " + colorInDepthDataLength);
 
                     byte[] depthData = new byte[depthDataLength];
                     Buffer.BlockCopy(data, sizeof(int) * 2, depthData, 0, depthDataLength);
-
                     byte[] colorInDepthData = new byte[colorInDepthDataLength];
                     Buffer.BlockCopy(data, sizeof(int) * 2 + depthDataLength, colorInDepthData, 0, colorInDepthDataLength);
 
+                    // Apply data to textures
                     DepthImage.LoadRawTextureData(depthData);
                     DepthImage.Apply();
-                    ColorInDepthImage.LoadRawTextureData(colorInDepthData);
+                    ColorInDepthImage.LoadImage(colorInDepthData);
                     ColorInDepthImage.Apply();
                 }
                 catch (Exception e)
@@ -202,7 +202,7 @@ namespace PubSub
                         Graphics.DrawProcedural(OcclusionMat, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Points, pixel_count);
                     }
 
-                    Graphics.DrawProcedural(PointcloudMat, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Points, pixel_count);
+                    Graphics.DrawProcedural(PointcloudMat, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Points, pixel_count);            
                 }
                 catch (Exception e)
                 {
@@ -215,13 +215,17 @@ namespace PubSub
         {
             Debug.Log("Setting up textures: DepthWidth=" + DepthWidth + " DepthHeight=" + DepthHeight);
 
-            //if (Color == null)
-            //    Color = new Texture2D(ColorWidth, ColorHeight, TextureFormat.BGRA32, false);
             if (Depth == null)
+            {
                 Depth = new Texture2D(DepthWidth, DepthHeight, TextureFormat.R8, false);
+            }
+
             if (ColorInDepth == null)
+            {
                 ColorInDepth = new Texture2D(IRWidth, IRHeight, TextureFormat.BGRA32, false);
+            }
         }
+
 
         private Matrix4x4 ByteArrayToMatrix4x4(byte[] byteArray)
         {
@@ -256,17 +260,6 @@ namespace PubSub
 
             return PointCloudMat;
         }
-
-        //private void OnRenderImage(RenderTexture source, RenderTexture destination)
-        //{
-        //    if (EnableARBackground && ARBackgroundMaterial)
-        //    {
-        //        Graphics.Blit(ColorImage, destination, new Vector2(1, -1), Vector2.zero);
-        //        Graphics.Blit(source, destination, ARBackgroundMaterial);
-        //    }
-        //    else
-        //        Graphics.Blit(source, destination);
-        //}
 
         private void OnDestroy()
         {
