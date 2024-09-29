@@ -1,17 +1,18 @@
-using NetMQ;
-using System;
-using System.Net.Sockets;
-using System.Net;
 using UnityEngine;
+using TMPro; // Import the TextMeshPro namespace
+using System;
+using NetMQ;
 using UnityMainThreadDispatcher;
-using System.Threading.Tasks;
 using UnityEngine.UI;
+using System.Threading.Tasks;
 
 namespace PubSub
 {
     public class KinectSubscriber : MonoBehaviour
     {
-        public RawImage ConnectionIndicator;
+        [Header("UI Display")]
+        public TextMeshProUGUI ByteLengthTMP;
+        public RawImage nCameraReceivedIndicator;
 
         [Header("Pointcloud Configs")]
         public bool UseOcclusionShader = true;
@@ -52,7 +53,6 @@ namespace PubSub
         [SerializeField] private string host;
         [SerializeField] private string port = "55555";
 
-
         public virtual void OnSetPointcloudProperties(Material pointcloudMat) { }
 
         void Start()
@@ -80,8 +80,8 @@ namespace PubSub
 
             UnityMainThreadDispatcher.Dispatcher.Enqueue(() =>
             {
-                if (ConnectionIndicator)
-                    ConnectionIndicator.color = Color.green;
+                if (nCameraReceivedIndicator)
+                    nCameraReceivedIndicator.color = Color.green;
 
                 try
                 {
@@ -154,8 +154,6 @@ namespace PubSub
 
             isProcessingFrame = true;
 
-            Debug.Log("On Frame Received: Data length : " + data.Length);
-
             // Process data on a background thread
             Task.Run(() =>
             {
@@ -170,11 +168,15 @@ namespace PubSub
                     byte[] colorInDepthData = new byte[colorInDepthDataLength];
                     Buffer.BlockCopy(data, sizeof(int) * 2 + depthDataLength, colorInDepthData, 0, colorInDepthDataLength);
 
+                    Debug.Log($"depthData lenth {depthData.Length}, colorInDepthData length {colorInDepthData.Length}");
+
                     // Schedule texture update on the main thread
                     UnityMainThreadDispatcher.Dispatcher.Enqueue(() =>
                     {
                         try
                         {
+                            ByteLengthTMP.text = $"{data.Length}";
+
                             // Apply data to textures
                             DepthImage.LoadRawTextureData(depthData);
                             DepthImage.Apply();
@@ -199,51 +201,49 @@ namespace PubSub
             });
         }
 
+        //private void Update()
+        //{
+        //    // Step 2: Render point cloud if DepthImage and PointcloudMat are ready
+        //    if (DepthImage != null && PointcloudMat != null)
+        //    {
+        //        // Calculate the total number of points to render (width * height of depth image)
+        //        int pixel_count = DepthImage.width * DepthImage.height;
 
+        //        try
+        //        {
+        //            // Set point cloud shader properties
+        //            PointcloudMat.SetMatrix("_PointcloudOrigin", transform.localToWorldMatrix);
+        //            PointcloudMat.SetFloat("_MaxPointDistance", MaxPointDistance);
 
-        protected virtual void Update()
-        {
-            // Step 2: Render point cloud if DepthImage and PointcloudMat are ready
-            if (DepthImage != null && PointcloudMat != null)
-            {
-                // Calculate the total number of points to render (width * height of depth image)
-                int pixel_count = DepthImage.width * DepthImage.height;
+        //            // Call any additional property setting method for custom point cloud properties
+        //            OnSetPointcloudProperties(PointcloudMat);
 
-                try
-                {
-                    // Set point cloud shader properties
-                    PointcloudMat.SetMatrix("_PointcloudOrigin", transform.localToWorldMatrix);
-                    PointcloudMat.SetFloat("_MaxPointDistance", MaxPointDistance);
+        //            // Handle occlusion shader logic
+        //            if (!UseOcclusionShader)
+        //            {
+        //                PointcloudMat.EnableKeyword("_ORIGINALPC_ON");
+        //            }
+        //            else
+        //            {
+        //                PointcloudMat.DisableKeyword("_ORIGINALPC_ON");
 
-                    // Call any additional property setting method for custom point cloud properties
-                    OnSetPointcloudProperties(PointcloudMat);
+        //                // Set occlusion shader properties
+        //                OcclusionMat.SetMatrix("_PointcloudOrigin", transform.localToWorldMatrix);
+        //                OcclusionMat.SetFloat("_MaxPointDistance", MaxPointDistance);
 
-                    // Handle occlusion shader logic
-                    if (!UseOcclusionShader)
-                    {
-                        PointcloudMat.EnableKeyword("_ORIGINALPC_ON");
-                    }
-                    else
-                    {
-                        PointcloudMat.DisableKeyword("_ORIGINALPC_ON");
+        //                // Render the occlusion shader
+        //                Graphics.DrawProcedural(OcclusionMat, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Points, pixel_count);
+        //            }
 
-                        // Set occlusion shader properties
-                        OcclusionMat.SetMatrix("_PointcloudOrigin", transform.localToWorldMatrix);
-                        OcclusionMat.SetFloat("_MaxPointDistance", MaxPointDistance);
-
-                        // Render the occlusion shader
-                        Graphics.DrawProcedural(OcclusionMat, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Points, pixel_count);
-                    }
-
-                    // Render the point cloud shader
-                    Graphics.DrawProcedural(PointcloudMat, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Points, pixel_count);
-                }
-                catch (Exception e)
-                {
-                    Debug.LogError("Error in point cloud rendering: " + e.Message);
-                }
-            }
-        }
+        //            // Render the point cloud shader
+        //            Graphics.DrawProcedural(PointcloudMat, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Points, pixel_count);
+        //        }
+        //        catch (Exception e)
+        //        {
+        //            Debug.LogError("Error in point cloud rendering: " + e.Message);
+        //        }
+        //    }
+        //}
 
 
         private void SetupTextures(ref Texture2D Depth, ref Texture2D ColorInDepth)
@@ -289,6 +289,7 @@ namespace PubSub
 
             return PointCloudMat;
         }
+
 
         private void OnDestroy()
         {
