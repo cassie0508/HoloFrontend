@@ -5,6 +5,7 @@ using NetMQ;
 using UnityMainThreadDispatcher;
 using UnityEngine.UI;
 using System.Threading.Tasks;
+using System.Linq;
 
 namespace PubSub
 {
@@ -41,6 +42,12 @@ namespace PubSub
         private byte[] xyLookupDataPart3;
 
         private bool isProcessingFrame = false;
+        private bool hasReceivedFirstFrame = false;
+
+        private static byte[] depthData;
+        private static readonly object dataLock = new object();
+        private static byte[] colorInDepthData;
+
 
         [Header("ReadOnly and exposed for Debugging: Update for every Frame")]
         [SerializeField] private Texture2D DepthImage;
@@ -154,80 +161,43 @@ namespace PubSub
 
             isProcessingFrame = true;
 
-            // Process data on a background thread
-            Task.Run(() =>
+            Debug.Log($"frame data length {data.Length} start to parse data");
+
+            lock (dataLock)
             {
-                try
-                {
-                    // Parse frame data
-                    int depthDataLength = BitConverter.ToInt32(data, 0);
-                    int colorInDepthDataLength = BitConverter.ToInt32(data, sizeof(int));
+                int depthDataLength = BitConverter.ToInt32(data, 0);
+                int colorInDepthDataLength = BitConverter.ToInt32(data, sizeof(int));
 
-                    byte[] depthData = new byte[depthDataLength];
-                    Buffer.BlockCopy(data, sizeof(int) * 2, depthData, 0, depthDataLength);
-                    byte[] colorInDepthData = new byte[colorInDepthDataLength];
-                    Buffer.BlockCopy(data, sizeof(int) * 2 + depthDataLength, colorInDepthData, 0, colorInDepthDataLength);
+                depthData = new byte[depthDataLength];
+                Buffer.BlockCopy(data, sizeof(int) * 2, depthData, 0, depthDataLength);
 
-                    Debug.Log($"depthData lenth {depthData.Length}, colorInDepthData length {colorInDepthData.Length}");
-
-                    // Schedule texture update on the main thread
-                    UnityMainThreadDispatcher.Dispatcher.Enqueue(() =>
-                    {
-                        try
-                        {
-                            ByteLengthTMP.text = $"{data.Length}";
-
-                            // Release old resources to avoid memory buildup
-                            ReleaseTextureResources();
-                            // Recreate and apply new textures
-                            SetupTextures(ref DepthImage, ref ColorInDepthImage);
-
-                            // Apply data to textures
-                            DepthImage.LoadRawTextureData(depthData);
-                            DepthImage.Apply();
-                            ColorInDepthImage.LoadImage(colorInDepthData);
-                            ColorInDepthImage.Apply();
-
-                            RenderPointCloud();
-                        }
-                        catch (Exception e)
-                        {
-                            Debug.LogError("Error in texture update: " + e.Message);
-                        }
-                        finally
-                        {
-                            isProcessingFrame = false;
-                        }
-                    });
-                }
-                catch (Exception e)
-                {
-                    Debug.LogError("Error in OnFrameReceived: " + e.Message);
-                    isProcessingFrame = false; // Ensure flag is reset even if parsing fails
-                }
-            });
-        }
-
-        private void ReleaseTextureResources()
-        {
-            if (DepthImage != null)
-            {
-                Destroy(DepthImage);
-                DepthImage = null;
+                colorInDepthData = new byte[colorInDepthDataLength];
+                Buffer.BlockCopy(data, sizeof(int) * 2 + depthDataLength, colorInDepthData, 0, colorInDepthDataLength);
             }
 
-            if (ColorInDepthImage != null)
-            {
-                Destroy(ColorInDepthImage);
-                ColorInDepthImage = null;
-            }
+            Debug.Log("finish parse data");
+
+            isProcessingFrame = false;
+            hasReceivedFirstFrame = true;
         }
 
 
-        private void RenderPointCloud()
+        private void Update()
         {
-            if (PointcloudMat != null && DepthImage != null && ColorInDepthImage != null)
+            if (hasReceivedFirstFrame)
             {
+                Debug.Log("start to apply data to texture");
+                ByteLengthTMP.SetText($"{colorInDepthData.Length}");
+                lock (dataLock)
+                {
+                    DepthImage.LoadRawTextureData(depthData.ToArray());
+                    DepthImage.Apply();
+
+                    ColorInDepthImage.LoadImage(colorInDepthData.ToArray());
+                    ColorInDepthImage.Apply();
+                }
+                Debug.Log("finish apply data to texture");
+
                 // Calculate the total number of points to render (width * height of depth image)
                 int pixel_count = DepthImage.width * DepthImage.height;
 
@@ -239,6 +209,8 @@ namespace PubSub
 
                     // Call any additional property setting method for custom point cloud properties
                     OnSetPointcloudProperties(PointcloudMat);
+
+                    Debug.Log("Finish OnSetPointcloudProperties");
 
                     // Handle occlusion shader logic
                     if (!UseOcclusionShader)
@@ -257,8 +229,10 @@ namespace PubSub
                         Graphics.DrawProcedural(OcclusionMat, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Points, pixel_count);
                     }
 
+                    Debug.Log("Start rendering");
                     // Render the point cloud shader
                     Graphics.DrawProcedural(PointcloudMat, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Points, pixel_count);
+                    Debug.Log("Finish rendering");
                 }
                 catch (Exception e)
                 {
@@ -266,50 +240,6 @@ namespace PubSub
                 }
             }
         }
-
-
-        //private void Update()
-        //{
-        //    if (DepthImage != null && ColorInDepthImage != null && PointcloudMat != null && OcclusionMat != null)
-        //    {
-        //        // Calculate the total number of points to render (width * height of depth image)
-        //        int pixel_count = DepthImage.width * DepthImage.height;
-
-        //        try
-        //        {
-        //            // Set point cloud shader properties
-        //            PointcloudMat.SetMatrix("_PointcloudOrigin", transform.localToWorldMatrix);
-        //            PointcloudMat.SetFloat("_MaxPointDistance", MaxPointDistance);
-
-        //            // Call any additional property setting method for custom point cloud properties
-        //            OnSetPointcloudProperties(PointcloudMat);
-
-        //            // Handle occlusion shader logic
-        //            if (!UseOcclusionShader)
-        //            {
-        //                PointcloudMat.EnableKeyword("_ORIGINALPC_ON");
-        //            }
-        //            else
-        //            {
-        //                PointcloudMat.DisableKeyword("_ORIGINALPC_ON");
-
-        //                // Set occlusion shader properties
-        //                OcclusionMat.SetMatrix("_PointcloudOrigin", transform.localToWorldMatrix);
-        //                OcclusionMat.SetFloat("_MaxPointDistance", MaxPointDistance);
-
-        //                // Render the occlusion shader
-        //                Graphics.DrawProcedural(OcclusionMat, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Points, pixel_count);
-        //            }
-
-        //            // Render the point cloud shader
-        //            Graphics.DrawProcedural(PointcloudMat, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Points, pixel_count);
-        //        }
-        //        catch (Exception e)
-        //        {
-        //            Debug.LogError("Error in point cloud rendering: " + e.Message);
-        //        }
-        //    }
-        //}
 
 
         private void SetupTextures(ref Texture2D Depth, ref Texture2D ColorInDepth)

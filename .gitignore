@@ -6,6 +6,9 @@
 [Bb]uilds/
 [Uu]serSettings/
 App/
+Build/
+Build1/
+Build2/
 
 # Visual Studio cache directory
 .vs/
