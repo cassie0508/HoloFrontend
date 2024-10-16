@@ -6,19 +6,24 @@ using UnityMainThreadDispatcher;
 using UnityEngine.UI;
 using System.Threading.Tasks;
 using System.Linq;
+using System.Collections.Generic;   // For List<>
 
 namespace PubSub
 {
     public class KinectSubscriber : MonoBehaviour
     {
-        [Header("UI Display")]
-        public TextMeshProUGUI ByteLengthTMP;
-        public RawImage nCameraReceivedIndicator;
-
+        [Serializable]
+        public struct PointcloudShader
+        {
+            public string ID;
+            public string ShaderName;
+        }
         [Header("Pointcloud Configs")]
-        public bool UseOcclusionShader = true;
-        public Shader PointCloudShader;
-        public Shader OcclusionShader;
+        public ComputeShader Depth2BufferShader;
+        public List<PointcloudShader> Shaders;
+        private int _CurrentSelectedShader = 0;
+        private Material _Buffer2SurfaceMaterial;
+
         [Range(0.01f, 0.1f)]
         public float MaxPointDistance = 0.02f;
 
@@ -36,6 +41,23 @@ namespace PubSub
         [SerializeField] private int IRHeight;
         [SerializeField] private Texture2D XYLookup;
         [SerializeField] private Matrix4x4 Color2DepthCalibration;
+        [SerializeField] private int kernel;
+        [SerializeField] private int dispatch_x;
+        [SerializeField] private int dispatch_y;
+        [SerializeField] private int dispatch_z;
+
+        [Header("ReadOnly and exposed for Debugging: Update for every Frame")]
+        [SerializeField] private Texture2D DepthImage;
+        [SerializeField] private Texture2D ColorInDepthImage;
+
+        [Header("UI Display")]
+        public TextMeshProUGUI ByteLengthTMP;
+        public RawImage CameraReceivedIndicator;
+
+        [SerializeField] private string host;
+        [SerializeField] private string port = "55555";
+
+        private Subscriber subscriber;
 
         private byte[] xyLookupDataPart1;
         private byte[] xyLookupDataPart2;
@@ -48,17 +70,13 @@ namespace PubSub
         private static readonly object dataLock = new object();
         private static byte[] colorInDepthData;
 
-
-        [Header("ReadOnly and exposed for Debugging: Update for every Frame")]
-        [SerializeField] private Texture2D DepthImage;
-        [SerializeField] private Texture2D ColorInDepthImage;
-        [SerializeField] private Material PointcloudMat;
-        [SerializeField] private Material OcclusionMat;
-
-        private Subscriber subscriber;
-
-        [SerializeField] private string host;
-        [SerializeField] private string port = "55555";
+        // Buffers for PointCloud Compute Shader
+        private Vector3[] vertexBuffer;
+        private Vector2[] uvBuffer;
+        private int[] indexBuffer;
+        private ComputeBuffer _ib;
+        private ComputeBuffer _ub;
+        private ComputeBuffer _vb;
 
         public virtual void OnSetPointcloudProperties(Material pointcloudMat) { }
 
@@ -87,8 +105,8 @@ namespace PubSub
 
             UnityMainThreadDispatcher.Dispatcher.Enqueue(() =>
             {
-                if (nCameraReceivedIndicator)
-                    nCameraReceivedIndicator.color = Color.green;
+                if (CameraReceivedIndicator)
+                    CameraReceivedIndicator.color = Color.green;
 
                 try
                 {
@@ -147,9 +165,19 @@ namespace PubSub
 
                         Debug.Log("XYLookup data length " + xyLookupData.Length);
 
-                        PointcloudMat = SetupPointcloudShader(PointCloudShader, ColorInDepthImage, DepthImage);
-                        OcclusionMat = SetupPointcloudShader(OcclusionShader, ColorInDepthImage, DepthImage);
-                        OcclusionMat.renderQueue = 3000;    // Set renderQueue to avoid rendering artifact
+                        if (!SetupShaders(57 /*Standard Kinect Depth FoV*/, DepthImage.width, DepthImage.height, out kernel))
+                        {
+                            Debug.LogError("KinectSubscriber::OnLookupsReceived(): Something went wrong while setting up shaders");
+                            return;
+                        }
+
+                        // Compute kernel group sizes. If it deviates from 32-32-1, this need to be adjusted inside Depth2Buffer.compute as well.
+                        Depth2BufferShader.GetKernelThreadGroupSizes(kernel, out var xc, out var yc, out var zc);
+
+                        dispatch_x = (DepthImage.width + (int)xc - 1) / (int)xc;
+                        dispatch_y = (DepthImage.height + (int)yc - 1) / (int)yc;
+                        dispatch_z = (1 + (int)zc - 1) / (int)zc;
+                        Debug.Log("KinectSubscriber::OnLookupsReceived(): Kernel group sizes are " + xc + "-" + yc + "-" + zc);
                     }
                 }
             });
@@ -193,51 +221,20 @@ namespace PubSub
                     DepthImage.LoadRawTextureData(depthData.ToArray());
                     DepthImage.Apply();
 
-                    ColorInDepthImage.LoadImage(colorInDepthData.ToArray());
+                    ColorInDepthImage.LoadRawTextureData(colorInDepthData.ToArray());
                     ColorInDepthImage.Apply();
                 }
                 Debug.Log("finish apply data to texture");
 
-                // Calculate the total number of points to render (width * height of depth image)
+                // Compute triangulation of PointCloud + maybe duplicate depending on the shader
+                Depth2BufferShader.SetFloat("_maxPointDistance", MaxPointDistance);
+                Depth2BufferShader.SetMatrix("_Transform", Matrix4x4.TRS(transform.position, transform.rotation, Vector3.one));
+                Depth2BufferShader.Dispatch(kernel, dispatch_x, dispatch_y, dispatch_z);
+
+                // Draw resulting PointCloud
                 int pixel_count = DepthImage.width * DepthImage.height;
-
-                try
-                {
-                    // Set point cloud shader properties
-                    PointcloudMat.SetMatrix("_PointcloudOrigin", transform.localToWorldMatrix);
-                    PointcloudMat.SetFloat("_MaxPointDistance", MaxPointDistance);
-
-                    // Call any additional property setting method for custom point cloud properties
-                    OnSetPointcloudProperties(PointcloudMat);
-
-                    Debug.Log("Finish OnSetPointcloudProperties");
-
-                    // Handle occlusion shader logic
-                    if (!UseOcclusionShader)
-                    {
-                        PointcloudMat.EnableKeyword("_ORIGINALPC_ON");
-                    }
-                    else
-                    {
-                        PointcloudMat.DisableKeyword("_ORIGINALPC_ON");
-
-                        // Set occlusion shader properties
-                        OcclusionMat.SetMatrix("_PointcloudOrigin", transform.localToWorldMatrix);
-                        OcclusionMat.SetFloat("_MaxPointDistance", MaxPointDistance);
-
-                        // Render the occlusion shader
-                        Graphics.DrawProcedural(OcclusionMat, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Points, pixel_count);
-                    }
-
-                    Debug.Log("Start rendering");
-                    // Render the point cloud shader
-                    Graphics.DrawProcedural(PointcloudMat, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Points, pixel_count);
-                    Debug.Log("Finish rendering");
-                }
-                catch (Exception e)
-                {
-                    Debug.LogError("Error in point cloud rendering: " + e.Message);
-                }
+                OnSetPointcloudProperties(_Buffer2SurfaceMaterial);
+                Graphics.DrawProcedural(_Buffer2SurfaceMaterial, new Bounds(transform.position, Vector3.one * 10), MeshTopology.Triangles, pixel_count * 6);
             }
         }
 
@@ -252,6 +249,99 @@ namespace PubSub
                 ColorInDepth = new Texture2D(IRWidth, IRHeight, TextureFormat.BGRA32, false);
         }
 
+        // call after SetupTextures
+        private bool SetupShaders(float foV, int texWidth, int texHeight, out int kernelID)
+        {
+            kernelID = 0;
+            // Setup Compute Shader
+            if (!Depth2BufferShader)
+            {
+                Debug.LogError("KinectSubscriber::SetupShaders(): Depth2BufferShader compute shader not found");
+                return false;
+            }
+
+            kernelID = Depth2BufferShader.FindKernel("Compute");
+
+            Depth2BufferShader.SetInt("_DepthWidth", texWidth);
+            Depth2BufferShader.SetInt("_DepthHeight", texHeight);
+
+            // apply sensor to device offset
+            Depth2BufferShader.SetMatrix("_Col2DepCalibration", Color2DepthCalibration);
+
+            // Setup Depth2Mesh Shader and reading buffers
+            int size = texWidth * texHeight;
+
+            vertexBuffer = new Vector3[size];
+            uvBuffer = new Vector2[size];
+            indexBuffer = new int[size * 6];
+
+            _vb = new ComputeBuffer(vertexBuffer.Length, 3 * sizeof(float));
+            _ub = new ComputeBuffer(uvBuffer.Length, 2 * sizeof(float));
+            _ib = new ComputeBuffer(indexBuffer.Length, sizeof(int));
+
+            // Set Kernel variables
+            Depth2BufferShader.SetBuffer(kernelID, "vertices", _vb);
+            Depth2BufferShader.SetBuffer(kernelID, "uv", _ub);
+            Depth2BufferShader.SetBuffer(kernelID, "triangles", _ib);
+
+            Depth2BufferShader.SetTexture(kernelID, "_DepthTex", DepthImage);
+            Depth2BufferShader.SetTexture(kernelID, "_XYLookup", XYLookup);
+
+            if (Shaders.Count == 0)
+            {
+                Debug.LogError("KinectSubscriber::SetupShaders(): Provide at least one point cloud shader");
+                return false;
+            }
+
+            // Setup Rendering Shaders
+            SwitchPointCloudShader(_CurrentSelectedShader);
+
+            return true;
+        }
+
+        [ContextMenu("Next Shader")]
+        public void NextShaderInList()
+        {
+            int nextShaderIndex = (_CurrentSelectedShader + 1) % Shaders.Count;
+
+            if (SwitchPointCloudShader(nextShaderIndex))
+            {
+                Debug.Log("KinectSubscriber::NextShaderInList(): Switched to PointCloud Shader " + Shaders[_CurrentSelectedShader].ID);
+            }
+        }
+
+        public bool SwitchPointCloudShader(string ID)
+        {
+            var indexShader = Shaders.FindIndex(x => x.ID == ID);
+            if (indexShader >= 0)
+                return SwitchPointCloudShader(indexShader);
+            else
+                return false;
+        }
+
+        public bool SwitchPointCloudShader(int indexInList)
+        {
+            var currentShaderName = Shaders[indexInList].ShaderName;
+
+            var pc_shader = Shader.Find(currentShaderName);
+            if (!pc_shader)
+            {
+                Debug.LogError("KinectSubscriber::SwitchPointCloudShader(): " + currentShaderName + " shader not found");
+                return false;
+            }
+            _CurrentSelectedShader = indexInList;
+
+            if (!_Buffer2SurfaceMaterial) _Buffer2SurfaceMaterial = new Material(pc_shader);
+            else _Buffer2SurfaceMaterial.shader = pc_shader;
+
+            _Buffer2SurfaceMaterial.SetBuffer("vertices", _vb);
+            _Buffer2SurfaceMaterial.SetBuffer("uv", _ub);
+            _Buffer2SurfaceMaterial.SetBuffer("triangles", _ib);
+            _Buffer2SurfaceMaterial.mainTexture = ColorInDepthImage;
+
+            return true;
+        }
+
         private Matrix4x4 ByteArrayToMatrix4x4(byte[] byteArray)
         {
             float[] matrixFloats = new float[16];
@@ -264,26 +354,6 @@ namespace PubSub
             }
 
             return matrix;
-        }
-
-        private Material SetupPointcloudShader(Shader shader, Texture2D ColorInDepth, Texture2D Depth)
-        {
-            var PointCloudMat = new Material(shader);
-
-            PointCloudMat.SetPass(0);
-
-            PointCloudMat.SetTexture("_ColorTex", ColorInDepth);
-            PointCloudMat.SetInt("_ColorWidth", ColorInDepth.width);
-            PointCloudMat.SetInt("_ColorHeight", ColorInDepth.height);
-
-            PointCloudMat.SetTexture("_DepthTex", Depth);
-            PointCloudMat.SetInt("_DepthWidth", Depth.width);
-            PointCloudMat.SetInt("_DepthHeight", Depth.height);
-
-            PointCloudMat.SetTexture("_XYLookup", XYLookup);
-            PointCloudMat.SetMatrix("_Col2DepCalibration", Color2DepthCalibration);
-
-            return PointCloudMat;
         }
 
 

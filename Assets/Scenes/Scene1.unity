@@ -405,7 +405,7 @@ PrefabInstance:
     - target: {fileID: 4042538623238849035, guid: 0377de7eb05c694498edb00d398d05ec,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: -0.2
+      value: -0.329
       objectReference: {fileID: 0}
     - target: {fileID: 4042538623238849035, guid: 0377de7eb05c694498edb00d398d05ec,
         type: 3}
@@ -516,9 +516,9 @@ Camera:
     y: 0
     width: 1
     height: 1
-  near clip plane: 0.1
-  far clip plane: 20
-  field of view: 60
+  near clip plane: 0.01
+  far clip plane: 10
+  field of view: 57
   orthographic: 0
   orthographic size: 5
   m_Depth: -1
@@ -562,11 +562,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ffbcb65b82cb33e49894f910e127a040, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ByteLengthTMP: {fileID: 1017363892}
-  nCameraReceivedIndicator: {fileID: 516269447}
-  UseOcclusionShader: 1
-  PointCloudShader: {fileID: 4800000, guid: 14a2d379594f4b84e91b1d293f91bd8d, type: 3}
-  OcclusionShader: {fileID: 4800000, guid: 8cfb4b3e2078a8e47902e620917cb02d, type: 3}
+  Depth2BufferShader: {fileID: 7200000, guid: f71f6f218a10b2d46bb54b48b8056559, type: 3}
+  Shaders:
+  - ID: Occlusion+Duplicate
+    ShaderName: DR/Buffer2Occlusion+Duplicate
+  - ID: Original+Duplicate
+    ShaderName: DR/Buffer2Pointcloud+Duplicate
+  - ID: Original
+    ShaderName: DR/Buffer2Pointcloud
+  - ID: Occlusion
+    ShaderName: DR/Buffer2Occlusion
+  - ID: Duplicate
+    ShaderName: DR/Buffer2Duplicate
   MaxPointDistance: 0.02
   EnableARBackground: 1
   ARBackgroundMaterial: {fileID: 2100000, guid: 48893fb64b8e75f4e9cf862f17c26ada,
@@ -595,13 +602,16 @@ MonoBehaviour:
     e31: 0
     e32: 0
     e33: 0
+  kernel: 0
+  dispatch_x: 0
+  dispatch_y: 0
+  dispatch_z: 0
   DepthImage: {fileID: 0}
   ColorInDepthImage: {fileID: 0}
-  PointcloudMat: {fileID: 0}
-  OcclusionMat: {fileID: 0}
-  host: 192.168.1.54
+  ByteLengthTMP: {fileID: 1017363892}
+  CameraReceivedIndicator: {fileID: 516269447}
+  host: 192.168.0.55
   port: 12345
-  EnableDuplication: 1
   RegionOfInterest: {fileID: 258810883}
   DuplicatedReality: {fileID: 891317617}
 --- !u!114 &963194230
@@ -836,7 +846,7 @@ PrefabInstance:
     - target: {fileID: 2264619205086389371, guid: 5d753fd81c5d1ba48b8dd2989f80532c,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0.2
+      value: 0.292
       objectReference: {fileID: 0}
     - target: {fileID: 2264619205086389371, guid: 5d753fd81c5d1ba48b8dd2989f80532c,
         type: 3}
