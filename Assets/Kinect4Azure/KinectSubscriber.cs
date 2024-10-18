@@ -7,8 +7,9 @@ using UnityEngine.UI;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Collections.Generic;   // For List<>
+using PubSub;
 
-namespace PubSub
+namespace Kinect4Azure
 {
     public class KinectSubscriber : MonoBehaviour
     {
@@ -189,8 +190,6 @@ namespace PubSub
 
             isProcessingFrame = true;
 
-            Debug.Log($"frame data length {data.Length} start to parse data");
-
             lock (dataLock)
             {
                 int depthDataLength = BitConverter.ToInt32(data, 0);
@@ -203,8 +202,6 @@ namespace PubSub
                 Buffer.BlockCopy(data, sizeof(int) * 2 + depthDataLength, colorInDepthData, 0, colorInDepthDataLength);
             }
 
-            Debug.Log("finish parse data");
-
             isProcessingFrame = false;
             hasReceivedFirstFrame = true;
         }
@@ -214,7 +211,6 @@ namespace PubSub
         {
             if (hasReceivedFirstFrame)
             {
-                Debug.Log("start to apply data to texture");
                 ByteLengthTMP.SetText($"{colorInDepthData.Length}");
                 lock (dataLock)
                 {
@@ -224,7 +220,6 @@ namespace PubSub
                     ColorInDepthImage.LoadRawTextureData(colorInDepthData.ToArray());
                     ColorInDepthImage.Apply();
                 }
-                Debug.Log("finish apply data to texture");
 
                 // Compute triangulation of PointCloud + maybe duplicate depending on the shader
                 Depth2BufferShader.SetFloat("_maxPointDistance", MaxPointDistance);
@@ -312,6 +307,7 @@ namespace PubSub
 
         public bool SwitchPointCloudShader(string ID)
         {
+            Debug.Log("KinectSubscriber::SwitchPointCloudShader(string ID) " + ID);
             var indexShader = Shaders.FindIndex(x => x.ID == ID);
             if (indexShader >= 0)
                 return SwitchPointCloudShader(indexShader);
@@ -321,6 +317,7 @@ namespace PubSub
 
         public bool SwitchPointCloudShader(int indexInList)
         {
+            Debug.Log("KinectSubscriber::SwitchPointCloudShader(int indexInList) " + indexInList);
             var currentShaderName = Shaders[indexInList].ShaderName;
 
             var pc_shader = Shader.Find(currentShaderName);

@@ -1,5 +1,6 @@
 using PubSub;
 using UnityEngine;
+using Kinect4Azure;
 
 public class KinectController_WithDuplicatedReality : KinectSubscriber
 {
