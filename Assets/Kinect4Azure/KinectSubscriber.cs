@@ -66,6 +66,8 @@ namespace Kinect4Azure
 
         private bool isProcessingFrame = false;
         private bool hasReceivedFirstFrame = false;
+        private bool hasReceivedCamera = false;
+        private bool hasReceivedLookup = false;
 
         private static byte[] depthData;
         private static readonly object dataLock = new object();
@@ -139,6 +141,8 @@ namespace Kinect4Azure
                     Debug.LogError("Error in OnCameraReceived: " + e.Message);
                 }
             });
+
+            hasReceivedCamera = true;
         }
 
         private void OnLookupsReceived(byte[] data, int part)
@@ -179,6 +183,8 @@ namespace Kinect4Azure
                         dispatch_y = (DepthImage.height + (int)yc - 1) / (int)yc;
                         dispatch_z = (1 + (int)zc - 1) / (int)zc;
                         Debug.Log("KinectSubscriber::OnLookupsReceived(): Kernel group sizes are " + xc + "-" + yc + "-" + zc);
+
+                        hasReceivedLookup = true;
                     }
                 }
             });
@@ -209,7 +215,7 @@ namespace Kinect4Azure
 
         private void Update()
         {
-            if (hasReceivedFirstFrame)
+            if (hasReceivedCamera && hasReceivedLookup && hasReceivedFirstFrame)
             {
                 ByteLengthTMP.SetText($"{colorInDepthData.Length}");
                 lock (dataLock)
