@@ -1,13 +1,14 @@
-Shader "DR/Buffer2Occlusion+Duplicate"{
-
+Shader "DR/Buffer2Occlusion+Duplicate"
+{
 	Properties
 	{
 	}
 	
 	SubShader
 	{
-		Tags{ "RenderType" = "Opaque"}
+		Tags { "RenderType" = "Opaque" }
 
+		// Occlusion Pass with added clipping logic
 		Pass
 		{
 			ZWrite On
@@ -24,23 +25,28 @@ Shader "DR/Buffer2Occlusion+Duplicate"{
 			StructuredBuffer<float3> vertices;
 			StructuredBuffer<int> triangles;
 
+			// Add: Duplicated Reality Matrices
+			float _ROI_Scale = 1;
+			half4x4 _ROI_Inversed;
+			half4x4 _Dupl_Inversed;
+			half4x4 _Roi2Dupl;
+
 			struct appdata
 			{
-				uint vertex_id: SV_VertexID;
-
-				// Single Instanced Pass Rendering
-				UNITY_VERTEX_INPUT_INSTANCE_ID
+				uint vertex_id : SV_VertexID;
+				UNITY_VERTEX_INPUT_INSTANCE_ID // Single Instanced Pass Rendering
 			};
 
 			struct v2f
 			{
 				float4 vertex : SV_POSITION;
-				// Single Instanced Pass Rendering
-				UNITY_VERTEX_OUTPUT_STEREO
+				float4 posWorld : TEXCOORD1;
+				UNITY_VERTEX_OUTPUT_STEREO // Single Instanced Pass Rendering
 			};
 
-			//the vertex shader function
-			v2f vert(appdata v){
+			// Vertex shader function
+			v2f vert(appdata v)
+			{
 				v2f o;
 
 				// Single Instanced Pass Rendering
@@ -55,15 +61,21 @@ Shader "DR/Buffer2Occlusion+Duplicate"{
 				{
 					float4 vertex = float4(vertices[positionID], 1);
 					o.vertex = UnityObjectToClipPos(vertex);
+					o.posWorld = mul(_Roi2Dupl, vertex); // Add: Applying transformation to duplicated reality
 				}
 
 				return o;
 			}
 
-
+			// Add: Fragment shader with clipping logic
 			fixed4 frag(v2f i) : SV_TARGET
 			{
-				return float4(1,1,1,1);
+				float3 vertInDuplPos = mul(_Dupl_Inversed, i.posWorld); // Transform to duplicated space
+
+				clip(vertInDuplPos + 0.5);  // Clip out points outside the range [-0.5, 0.5]
+				clip(0.5 - vertInDuplPos);
+
+				return float4(1, 1, 1, 1); // Return white color for occlusion pass
 			}
 
 			ENDCG
@@ -149,5 +161,5 @@ Shader "DR/Buffer2Occlusion+Duplicate"{
 			ENDCG
 		}
 	}
-		Fallback "Diffuse"
+	Fallback "Diffuse"
 }
