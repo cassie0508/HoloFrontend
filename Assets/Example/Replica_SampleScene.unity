@@ -604,7 +604,7 @@ MonoBehaviour:
   ColorInDepthImage: {fileID: 0}
   ByteLengthTMP: {fileID: 1017363892}
   CameraReceivedIndicator: {fileID: 516269447}
-  host: 192.168.1.54
+  host: 10.181.239.24
   port: 12345
   RegionOfInterest: {fileID: 448496896}
   DuplicatedReality: {fileID: 2101644625}
