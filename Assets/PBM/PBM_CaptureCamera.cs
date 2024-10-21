@@ -1,11 +1,17 @@
-﻿using UnityEngine;
+﻿using PubSub;
+using System;
+using UnityEngine;
 
 [RequireComponent(typeof(Camera))]
 public class PBM_CaptureCamera : MonoBehaviour
 {
+    [SerializeField] private string host;
+    [SerializeField] private string port = "55555";
+    private Subscriber subscriber;
 
     [Header("Feed the camera texture into ColorImage. \nConfigure the Camera component to use the physical Camera property. \nMatch the sensor size with the camera resolution and configure the FoV/FocalLength."), Space]
     public Texture ColorImage;
+    [SerializeField] private Texture2D tmpColorImage;
 
     [Header("Resulting View (leave empty)")]
     public RenderTexture ViewRenderTexture;
@@ -61,6 +67,18 @@ public class PBM_CaptureCamera : MonoBehaviour
 
     private void Awake()
     {
+        try
+        {
+            subscriber = new Subscriber(host, port);
+            subscriber.AddTopicCallback("Size", data => OnColorSizeReceived(data));
+            subscriber.AddTopicCallback("Color", data => OnColorFrameReceived(data));
+            Debug.Log("Subscriber setup complete with host: " + host + " and port: " + port);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError("Failed to start subscriber: " + e.Message);
+        }
+
         _Camera = GetComponent<Camera>();
         _Camera.cullingMask &= ~(1 << LayerMask.NameToLayer("PBM"));
         _Camera.usePhysicalProperties = true;
@@ -75,6 +93,45 @@ public class PBM_CaptureCamera : MonoBehaviour
         ViewRenderTexture.Create();
 
         Frustum.Create(LayerMask.NameToLayer("PBM"), transform);
+    }
+
+    private void OnColorSizeReceived(byte[] data)
+    {
+        if(data.Length != 2 * sizeof(int))
+        {
+            Debug.LogError($"PBM_CaptureCamera::OnColorSizeReceived(): Data length is not right");
+            return;
+        }
+
+        int[] sizeArray = new int[2];
+        Buffer.BlockCopy(data, 0, sizeArray, 0, data.Length);
+        int width = sizeArray[0];
+        int height = sizeArray[1];
+
+        UnityMainThreadDispatcher.Dispatcher.Enqueue(() =>
+        {
+            if (tmpColorImage == null)
+            {
+                tmpColorImage = new Texture2D(width, height, TextureFormat.RGB24, false);
+                Debug.Log($"PBM_CaptureCamera::OnColorSizeReceived(): Initialized new ColorImage with width: {width}, height: {height}");
+            }
+        });
+    }
+
+    private void OnColorFrameReceived(byte[] data)
+    {
+        Debug.Log($"PBM_CaptureCamera::OnColorFrameReceived(): data length is {data.Length}");
+
+        UnityMainThreadDispatcher.Dispatcher.Enqueue(() => 
+        {
+            if (tmpColorImage != null )
+            {
+                tmpColorImage.LoadRawTextureData(data);
+                tmpColorImage.Apply();
+
+                ColorImage = tmpColorImage;
+            }
+        });
     }
 
     public void UpdateValidAreaCompensationWithObserver(Vector3 ObserverWorldPos)
@@ -159,11 +216,15 @@ public class PBM_CaptureCamera : MonoBehaviour
 
     private void OnRenderImage(RenderTexture source, RenderTexture destination)
     {
-        RealVirtualMergeMaterial.mainTexture = source;
+        Debug.Log("Source texture type: " + source.GetType());
 
-        RealVirtualMergeMaterial.SetTexture("_RealContentTex", ColorImage);
+        if (ColorImage is Texture2D)
+        {
+            RealVirtualMergeMaterial.mainTexture = source;
+            RealVirtualMergeMaterial.SetTexture("_RealContentTex", ColorImage);
 
-        Graphics.Blit(source, ViewRenderTexture, RealVirtualMergeMaterial);
+            Graphics.Blit(source, ViewRenderTexture, RealVirtualMergeMaterial);
+        }
     }
 
 
