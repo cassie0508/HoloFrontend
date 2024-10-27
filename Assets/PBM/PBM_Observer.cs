@@ -154,7 +154,6 @@ public class PBM_Observer : MonoBehaviour
                 return;
             }
 
-
             var cameraMidPoint = (capturer.transform.position + ObserverCam.transform.position) / 2;
 
             var mirrorNormal = Vector3.Normalize(ObserverCam.transform.position - cameraMidPoint);

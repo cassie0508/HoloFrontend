@@ -10,8 +10,8 @@ public class PBM_CaptureCamera : MonoBehaviour
     private Subscriber subscriber;
 
     [Header("Feed the camera texture into ColorImage. \nConfigure the Camera component to use the physical Camera property. \nMatch the sensor size with the camera resolution and configure the FoV/FocalLength."), Space]
-    public Texture ColorImage;
-    [SerializeField] private Texture2D tmpColorImage;
+    [SerializeField] private Texture2D ColorImage;
+    private bool hasFirstFrameReceived;
 
     [Header("Resulting View (leave empty)")]
     public RenderTexture ViewRenderTexture;
@@ -93,6 +93,8 @@ public class PBM_CaptureCamera : MonoBehaviour
         ViewRenderTexture.Create();
 
         Frustum.Create(LayerMask.NameToLayer("PBM"), transform);
+
+        hasFirstFrameReceived = false;
     }
 
     private void OnColorSizeReceived(byte[] data)
@@ -108,11 +110,14 @@ public class PBM_CaptureCamera : MonoBehaviour
         int width = sizeArray[0];
         int height = sizeArray[1];
 
+        Debug.Log($"Recieve width is {width}, height is {height}");
+        Debug.Log($"_Camera width is {Width}, height is {Height}");
+
         UnityMainThreadDispatcher.Dispatcher.Enqueue(() =>
         {
-            if (tmpColorImage == null)
+            if (ColorImage == null)
             {
-                tmpColorImage = new Texture2D(width, height, TextureFormat.RGB24, false);
+                ColorImage = new Texture2D(width, height, TextureFormat.RGB24, false);
                 Debug.Log($"PBM_CaptureCamera::OnColorSizeReceived(): Initialized new ColorImage with width: {width}, height: {height}");
             }
         });
@@ -120,16 +125,16 @@ public class PBM_CaptureCamera : MonoBehaviour
 
     private void OnColorFrameReceived(byte[] data)
     {
-        Debug.Log($"PBM_CaptureCamera::OnColorFrameReceived(): data length is {data.Length}");
+        hasFirstFrameReceived |= true;
 
         UnityMainThreadDispatcher.Dispatcher.Enqueue(() => 
         {
-            if (tmpColorImage != null )
+            if (ColorImage != null )
             {
-                tmpColorImage.LoadRawTextureData(data);
-                tmpColorImage.Apply();
+                ColorImage.LoadRawTextureData(data);
+                ColorImage.Apply();
 
-                ColorImage = tmpColorImage;
+                Debug.Log($"OnColorFrameReceived: ColorImage has been updated. Type: {ColorImage.GetType()}");
             }
         });
     }
@@ -212,20 +217,73 @@ public class PBM_CaptureCamera : MonoBehaviour
         return new Vector2(fov, fov);
     }
 
-   
-
+    // https://stackoverflow.com/questions/44264468/convert-rendertexture-to-texture2d
     private void OnRenderImage(RenderTexture source, RenderTexture destination)
     {
-        Debug.Log("Source texture type: " + source.GetType());
-
-        if (ColorImage is Texture2D)
+        if (ColorImage != null && hasFirstFrameReceived)
         {
-            RealVirtualMergeMaterial.mainTexture = source;
+            Texture2D tmpSource = new Texture2D(source.width, source.height, TextureFormat.RGB24, false);
+            RenderTexture.active = source;
+            tmpSource.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0);
+            tmpSource.Apply();
+
+            RealVirtualMergeMaterial.mainTexture = tmpSource;
             RealVirtualMergeMaterial.SetTexture("_RealContentTex", ColorImage);
+
+            Debug.Log($"OnRenderImage: tmpSource is {tmpSource}, " +
+                $"ColorImage size is {ColorImage.width} {ColorImage.height}, " +
+                $"ViewRenderTexture size is {ViewRenderTexture.width} {ViewRenderTexture.height}");
 
             Graphics.Blit(source, ViewRenderTexture, RealVirtualMergeMaterial);
         }
     }
 
 
+    //private void OnRenderImage(RenderTexture source, RenderTexture destination)
+    //{
+    //    if (ColorImage != null && hasFirstFrameReceived)
+    //    {
+    //        Resize(ColorImage, source.width, source.height);
+
+    //        RealVirtualMergeMaterial.mainTexture = source;
+    //        RealVirtualMergeMaterial.SetTexture("_RealContentTex", ColorImage);
+
+    //        Debug.Log($"OnRenderImage: source is {source}, " +
+    //            $"ColorImage size is {ColorImage.width} {ColorImage.height}, " +
+    //            $"ViewRenderTexture size is {ViewRenderTexture.width} {ViewRenderTexture.height}");
+
+    //        Graphics.Blit(source, ViewRenderTexture, RealVirtualMergeMaterial);
+    //    }
+    //}
+
+    // https://github.com/ababilinski/unity-gpu-texture-resize/blob/master/ResizeTool.cs
+    private void Resize(Texture2D texture2D, int targetX, int targetY, bool mipmap = true, FilterMode filter = FilterMode.Bilinear)
+    {
+        //create a temporary RenderTexture with the target size
+        RenderTexture rt = RenderTexture.GetTemporary(targetX, targetY, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default);
+
+        //set the active RenderTexture to the temporary texture so we can read from it
+        RenderTexture.active = rt;
+
+        //Copy the texture data on the GPU - this is where the magic happens [(;]
+        Graphics.Blit(texture2D, rt);
+        //resize the texture to the target values (this sets the pixel data as undefined)
+        texture2D.Resize(targetX, targetY, texture2D.format, mipmap);
+        texture2D.filterMode = filter;
+
+        try
+        {
+            //reads the pixel values from the temporary RenderTexture onto the resized texture
+            texture2D.ReadPixels(new Rect(0.0f, 0.0f, targetX, targetY), 0, 0);
+            //actually upload the changed pixels to the graphics card
+            texture2D.Apply();
+        }
+        catch
+        {
+            Debug.LogError("Read/Write is not enabled on texture " + texture2D.name);
+        }
+
+
+        RenderTexture.ReleaseTemporary(rt);
+    }
 }
