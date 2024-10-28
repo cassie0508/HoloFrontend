@@ -12,6 +12,7 @@ public class PBM_CaptureCamera : MonoBehaviour
     [Header("Feed the camera texture into ColorImage. \nConfigure the Camera component to use the physical Camera property. \nMatch the sensor size with the camera resolution and configure the FoV/FocalLength."), Space]
     [SerializeField] private Texture2D ColorImage;
     private bool hasFirstFrameReceived;
+    private Texture2D textureSource;
 
     [Header("Resulting View (leave empty)")]
     public RenderTexture ViewRenderTexture;
@@ -222,15 +223,18 @@ public class PBM_CaptureCamera : MonoBehaviour
     {
         if (ColorImage != null && hasFirstFrameReceived)
         {
-            Texture2D tmpSource = new Texture2D(source.width, source.height, TextureFormat.RGB24, false);
+            if(textureSource == null)
+            {
+                textureSource = new Texture2D(source.width, source.height, TextureFormat.RGB24, false);
+            }
             RenderTexture.active = source;
-            tmpSource.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0);
-            tmpSource.Apply();
+            textureSource.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0);
+            textureSource.Apply();
 
-            RealVirtualMergeMaterial.mainTexture = tmpSource;
+            RealVirtualMergeMaterial.mainTexture = textureSource;
             RealVirtualMergeMaterial.SetTexture("_RealContentTex", ColorImage);
 
-            Debug.Log($"OnRenderImage: tmpSource is {tmpSource}, " +
+            Debug.Log($"OnRenderImage: textureSource is {textureSource}, " +
                 $"ColorImage size is {ColorImage.width} {ColorImage.height}, " +
                 $"ViewRenderTexture size is {ViewRenderTexture.width} {ViewRenderTexture.height}");
 
