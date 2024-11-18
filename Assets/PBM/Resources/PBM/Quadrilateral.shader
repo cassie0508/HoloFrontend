@@ -23,17 +23,25 @@
                     float4 vertex : POSITION;
                     
                     float3 texcoord  : TEXCOORD0;
+
+                    UNITY_VERTEX_INPUT_INSTANCE_ID //Insert
                 };
 
                 struct vertexOutput {
                     float4 pos : SV_POSITION;
 
                     float3 uv  : TEXCOORD0;
+
+                    UNITY_VERTEX_OUTPUT_STEREO //Insert
                 };
 
                 vertexOutput vert(vertexInput input)
                 {
                     vertexOutput output;
+                    UNITY_SETUP_INSTANCE_ID(input); //Insert
+                    UNITY_INITIALIZE_OUTPUT(vertexOutput, output); //Insert
+                    UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output); //Insert
+
                     output.pos = UnityObjectToClipPos(input.vertex);
 
                     output.uv = input.texcoord;
